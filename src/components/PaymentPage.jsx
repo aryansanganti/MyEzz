@@ -136,24 +136,24 @@ function PaymentPage() {
         delivery_lng: customerInfo?.longitude,
       };
 
+      // Optional: Legacy Google Sheets Logging
       const scriptUrl = import.meta.env.VITE_APP_SCRIPT_URL;
-      if (!scriptUrl) {
-        console.error("VITE_APP_SCRIPT_URL is not defined in .env");
-        alert("Configuration Error: API URL missing");
-        setLoading(false);
-        return;
+      if (scriptUrl) {
+        try {
+          console.log("Submitting order to Apps Script:", orderData);
+          await fetch(scriptUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(orderData),
+            mode: "no-cors",
+          });
+          console.log("Apps Script request sent.");
+        } catch (scriptErr) {
+          console.warn("Apps Script logging failed:", scriptErr);
+        }
+      } else {
+        console.log("Skipping Apps Script logging (URL not defined)");
       }
-
-      console.log("Submitting order to Apps Script:", orderData);
-
-      const response = await fetch(scriptUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(orderData),
-        mode: "no-cors",
-      });
-
-      console.log("Apps Script request sent.");
 
       // Update user profile in localStorage (removed - now handled by backend)
       /* 
@@ -181,6 +181,7 @@ function PaymentPage() {
             orderData,
             customerInfo,
             cart,
+            orderId: state?.orderId // Pass the real MongoDB ID
           },
         });
       }, 2000);

@@ -166,25 +166,76 @@ export default function App() {
         }]);
     };
 
-    const handlePayNow = (addressData) => {
+    const handlePayNow = async (addressData) => {
         if (!addressData.fullName.trim() || !addressData.emailId.trim() || !addressData.phoneNumber.trim() || !addressData.fullAddress.trim()) {
             alert("Please fill in all delivery information fields.");
             return;
         }
 
-        const customerInfo = {
-            ...addressData,
-            latitude: userLocation?.lat,
-            longitude: userLocation?.lng
-        };
+        try {
+            const customerInfo = {
+                ...addressData,
+                latitude: userLocation?.lat,
+                longitude: userLocation?.lng
+            };
 
-        const cartWithVendor = cartItems.map(item => ({
-            ...item,
-            vendor: item.vendor || "Unknown Vendor",
-            restaurantName: item.restaurantName || "Unknown Restaurant"
-        }));
+            // Group items by restaurant to potentially split orders, 
+            // but for Phase 2 we act as if it's one order or just take the first restaurant's ID
+            // In a real multi-vendor system, this loop would create multiple orders.
+            // For now, let's assume single vendor order for simplicity or just take the first one.
+            // FOR DEMO: Force 'rest_001' so it appears in the Vendor Dashboard
+            // const restaurantId = cartItems[0]?.restaurant_id || cartItems[0]?.restaurantId || 'rest_001';
+            const restaurantId = 'rest_001';
 
-        navigate("/payment", { state: { customerInfo, cart: cartWithVendor } });
+            const orderPayload = {
+                customer_id: currentUser?.id || addressData.fullName || 'guest_user',
+                restaurant_id: restaurantId,
+                items: cartItems.map(item => ({
+                    item_id: item.id,
+                    name: item.name,
+                    qty: item.quantity,
+                    price: item.price
+                })),
+                address: {
+                    latitude: userLocation?.lat || 19.0760,
+                    longitude: userLocation?.lng || 72.8777,
+                    address_text: addressData.fullAddress
+                }
+            };
+
+            const response = await fetch('http://localhost:5001/api/orders', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(orderPayload)
+            });
+
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.message || 'Failed to create order');
+            }
+
+            const createdOrder = await response.json();
+            console.log('Order Created:', createdOrder);
+
+            const cartWithVendor = cartItems.map(item => ({
+                ...item,
+                vendor: item.vendor || "Unknown Vendor",
+                restaurantName: item.restaurantName || "Unknown Restaurant"
+            }));
+
+            // Pass the created Order ID to the payment page
+            navigate("/payment", {
+                state: {
+                    customerInfo,
+                    cart: cartWithVendor,
+                    orderId: createdOrder._id || createdOrder.id
+                }
+            });
+
+        } catch (error) {
+            console.error('Order creation error:', error);
+            showToastMessage(`Error: ${error.message}`);
+        }
     };
 
     return (

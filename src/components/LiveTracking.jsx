@@ -4,6 +4,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, MapPin, Navigation, Phone, MessageSquare } from 'lucide-react';
+import socketService from '../services/socketService';
 
 // IMPORTANT: User's Mapbox Token
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
@@ -62,15 +63,28 @@ const LiveTracking = () => {
     const [status] = useState("Out for Delivery");
 
     // Simulate rider movement for demo
+    // Live Socket Connection
     useEffect(() => {
-        const interval = setInterval(() => {
-            setRiderPos(prev => [
-                prev[0] + (Math.random() - 0.5) * 0.001,
-                prev[1] + (Math.random() - 0.5) * 0.001
-            ]);
-        }, 3000);
-        return () => clearInterval(interval);
-    }, []);
+        if (!orderId) return;
+
+        // 1. Connect & Join
+        socketService.connect();
+        socketService.joinOrderRoom(orderId);
+
+        // 2. Listen for Updates
+        const handleLocationUpdate = (data) => {
+            console.log('Rider Moved:', data);
+            const { lat, lng } = data;
+            // Update Leaflet State
+            setRiderPos([lat, lng]);
+        };
+
+        socketService.onLocationUpdate(handleLocationUpdate);
+
+        return () => {
+            socketService.disconnect();
+        };
+    }, [orderId]);
 
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
